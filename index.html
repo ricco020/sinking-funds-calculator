@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sinking funds calculator: how much to save per paycheck for each fund</title>
+<meta name="description" content="Free sinking funds calculator: list your yearly or one-off costs (car insurance, gifts, repairs) with their due date and what you have already saved. It counts the real paydays left before each due date, gives the amount per paycheck for each fund, the steady amount once you are caught up, and a CSV plan for Excel or Google Sheets. Runs in your browser.">
+<style>
+:root{--ink:#1d1a24;--paper:#f3efe6;--navy:#23395b;--rust:#b2542b;--rule:#d8d0bd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 Georgia,"Iowan Old Style",serif}
+main{max-width:800px;margin:0 auto;padding:36px 18px 60px}
+h1{font-size:1.9rem;line-height:1.15;margin:0 0 .4em;color:var(--navy)}
+h2{font-size:1.2rem;margin:1.8em 0 .5em;color:var(--navy)}
+a{color:var(--navy)}
+.box{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:14px}
+.fund{display:grid;grid-template-columns:1.6fr 1fr 1.2fr 1fr 1.1fr 34px;gap:8px;margin-bottom:8px;align-items:end}
+.fund label,.row label{font-size:.85rem;display:flex;flex-direction:column;gap:3px;min-width:0}
+input,select{font:inherit;padding:7px;border:1px solid var(--rule);border-radius:5px;background:#fff;width:100%;min-width:0}
+.x{font:inherit;border:1px solid var(--rule);background:#fff;border-radius:5px;height:40px;cursor:pointer;color:var(--rust)}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+button.add,.dl button{font:inherit;font-weight:bold;padding:9px 14px;border:2px solid var(--navy);border-radius:6px;background:#fff;color:var(--navy);cursor:pointer}
+.dl{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.dl button.main{background:var(--navy);color:#fff}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
+.sum div{background:#fff;border-top:4px solid var(--rust);padding:10px 14px;border-radius:4px}
+.sum b{display:block;font-size:1.2rem;color:var(--navy)}
+.warn{background:#fbe9e1;border-left:4px solid var(--rust);padding:8px 12px;border-radius:4px;margin:10px 0}
+.res{width:100%;border-collapse:collapse;background:#fff;font-size:.93rem}
+.res th,.res td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:right}
+.res th:first-child,.res td:first-child{text-align:left}
+.scroll{overflow-x:auto}
+small{color:#5f5a66}
+@media(max-width:620px){.fund{grid-template-columns:1fr 1fr;padding-bottom:8px;border-bottom:1px solid var(--rule)}.fund label:first-child,.fund .x{grid-column:1/-1}.fund .x{height:34px}.res{font-size:.85rem}.res th,.res td{padding:5px 4px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Sinking funds calculator</h1>
+<p>A sinking fund turns a big cost you can see coming (car insurance, holiday gifts, a new set of tires) into a small amount set aside from every paycheck. Enter each cost, when it is due and what you already have: the calculator counts the paydays you really have left before each due date and tells you what to move from each paycheck, fund by fund.</p>
+<div class="box">
+<div class="row">
+<label>Pay schedule<select id="freq"><option value="biweekly">Every 2 weeks (biweekly)</option><option value="weekly">Every week</option><option value="semimonthly">15th and last day</option><option value="monthly">Once a month</option></select></label>
+<label>Next payday<input type="date" id="first"></label>
+</div>
+<div id="funds"></div>
+<button class="add" id="add" type="button">+ Add a fund</button>
+</div>
+<div id="out"></div>
+<div class="dl"><button class="main" id="csv" type="button">Download the plan (CSV)</button></div>
+<p><small>Amounts per paycheck are rounded up to the cent, so each fund reaches its target on time or a few cents above. Nothing you type leaves this page.</small></p>
+
+<h2>How the amount per paycheck is worked out</h2>
+<p>For each fund: (cost minus what is already saved) divided by the number of paydays from your next payday up to and including the due date. A payday that falls on the due date counts, one after it does not. If no payday is left before the due date, the fund is flagged: the gap has to come from money on hand.</p>
+<h2>Catch-up amount and steady amount</h2>
+<p>Starting a fund late costs more per paycheck than keeping it going. For a cost that comes back every year (or every 6 months), the calculator also shows the steady amount: the full cost spread over the paydays of the next cycle, counted on your real calendar. A biweekly year has 26 paydays most of the time and 27 in some years, so the steady amount is not always cost / 26.</p>
+<h2>Monthly view</h2>
+<p>The table adds up what leaves your paychecks each calendar month for the next 12 months. Months with an extra paycheck (3 biweekly paydays, or 5 weekly ones) show a higher total: that is the same amount per paycheck, not a mistake.</p>
+<h2>Limits</h2>
+<p>No interest is added (a high-yield savings account would only help). Costs are taken at today's price. Weekly and biweekly paydays move in steps of 7 or 14 days from the next payday you enter; "once a month" keeps the same day of the month (the last day when the month is shorter).</p>
+<h2>Keep it on paper</h2>
+<p>To track each fund by hand (yearly costs list with the amount per month, 12 deposits per fund, a spending log and a year summary), there is a <a href="https://tidysheets.shop/p/sinking-funds-tracker-printable">printable sinking funds tracker</a>.</p>
+<p><small>Source code: <a href="https://github.com/ricco020/sinking-funds-calculator">github.com/ricco020/sinking-funds-calculator</a> (MIT).</small></p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const DAY=86400000;
+const ymd=d=>d.toISOString().slice(0,10);
+const parse=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d))};
+const money=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const ceil2=v=>Math.ceil(Math.round(v*1e6)/1e4)/100;
+const lastDay=(y,m)=>new Date(Date.UTC(y,m+1,0)).getUTCDate();
+function paydays(freq,first,until){const out=[];
+ if(freq==='weekly'||freq==='biweekly'){const st=freq==='weekly'?7:14;for(let t=first.getTime();t<=until.getTime();t+=st*DAY)out.push(new Date(t));return out}
+ if(freq==='monthly'){const day=first.getUTCDate();for(let i=0;;i++){const y=first.getUTCFullYear(),m=first.getUTCMonth()+i;const yy=y+Math.floor(m/12),mm=((m%12)+12)%12;const d=new Date(Date.UTC(yy,mm,Math.min(day,lastDay(yy,mm))));if(d>until)return out;out.push(d)}}
+ for(let i=0;;i++){const y=first.getUTCFullYear(),m=first.getUTCMonth()+i;const yy=y+Math.floor(m/12),mm=((m%12)+12)%12;
+  for(const dd of[15,lastDay(yy,mm)]){const d=new Date(Date.UTC(yy,mm,dd));if(d<first)continue;if(d>until)return out;out.push(d)}}}
+function addMonths(d,n){const y=d.getUTCFullYear(),m=d.getUTCMonth()+n;const yy=y+Math.floor(m/12),mm=((m%12)+12)%12;return new Date(Date.UTC(yy,mm,Math.min(d.getUTCDate(),lastDay(yy,mm))))}
+function plan(freq,first,funds,horizonMonths){
+ const end=addMonths(first,horizonMonths);
+ let maxDue=end;for(const f of funds){let d=f.due;if(f.rep>0){while(d<=end)d=addMonths(d,f.rep)}if(d>maxDue)maxDue=d}
+ const pd=paydays(freq,first,maxDue);
+ const rows=[];
+ for(const f of funds){const need=Math.max(0,f.cost-f.saved);const r={name:f.name,cost:f.cost,saved:f.saved,due:f.due,rep:f.rep,per:{},catchup:null,steady:null,n:0,late:false};
+  let start=null,due=f.due,amt=need,cycle=0;
+  while(due<=maxDue){const n=pd.filter(p=>(start===null||p>start)&&p<=due);
+   if(cycle===0){r.n=n.length;if(n.length===0&&need>0){r.late=true}}
+   const a=n.length?ceil2(amt/n.length):0;if(cycle===0)r.catchup=a;if(cycle===1)r.steady=a;
+   for(const p of n)r.per[ymd(p)]=(r.per[ymd(p)]||0)+a;
+   if(!(f.rep>0))break;start=due;due=addMonths(due,f.rep);amt=f.cost;cycle++;if(start>end)break}
+  rows.push(r)}
+ return{pd:pd.filter(p=>p<end),rows,end}}
+const T0=new Date(),T=new Date(Date.UTC(T0.getFullYear(),T0.getMonth(),T0.getDate()));
+const xmas=()=>{let d=new Date(Date.UTC(T.getUTCFullYear(),11,15));if(d-T<21*DAY)d=new Date(Date.UTC(T.getUTCFullYear()+1,11,15));return ymd(d)};
+const sample=[['Car insurance (6-month premium)',780,ymd(addMonths(T,3)),120,6],['Holiday gifts',600,xmas(),420,12],['Car maintenance and tires',900,ymd(addMonths(T,7)),0,12],['Annual subscriptions',240,ymd(addMonths(T,2)),60,12],['Vacation',1500,ymd(addMonths(T,8)),0,0]];
+function fund(v){const d=document.createElement('div');d.className='fund';
+ d.innerHTML=`<label>Fund<input class="n" value="${v[0]}" placeholder="What it is for"></label><label>Cost ($)<input class="c" type="number" min="0" step="10" value="${v[1]}"></label><label>Due date<input class="d" type="date" value="${v[2]}"></label><label>Saved ($)<input class="s" type="number" min="0" step="10" value="${v[3]}"></label><label>Comes back<select class="r"><option value="0">One time</option><option value="12">Every year</option><option value="6">Every 6 months</option><option value="3">Every 3 months</option></select></label><button class="x" type="button" title="Remove">&times;</button>`;
+ d.querySelector('.r').value=String(v[4]);d.querySelector('.x').onclick=()=>{d.remove();run()};d.querySelectorAll('input,select').forEach(e=>e.oninput=run);$('funds').appendChild(d)}
+let last=null;
+function run(){const first=$('first').value?parse($('first').value):null;if(!first)return;
+ const funds=[...document.querySelectorAll('.fund')].map(d=>({name:d.querySelector('.n').value.trim()||'Fund',cost:+d.querySelector('.c').value||0,due:d.querySelector('.d').value?parse(d.querySelector('.d').value):null,saved:+d.querySelector('.s').value||0,rep:+d.querySelector('.r').value})).filter(f=>f.due&&f.cost>0);
+ const p=plan($('freq').value,first,funds,12);last=p;
+ const now=p.rows.reduce((s,r)=>s+(r.catchup||0),0),steady=p.rows.reduce((s,r)=>s+(r.rep>0?(r.steady??r.catchup??0):0),0);
+ const months={};for(const d of p.pd){const k=ymd(d).slice(0,7);months[k]=months[k]||{n:0,t:0};months[k].n++;for(const r of p.rows)months[k].t+=r.per[ymd(d)]||0}
+ let h=`<div class="sum"><div>From your next paycheck<b>${money(now)}</b><small>all funds, until the first due date passes</small></div><div>Steady, recurring funds<b>${money(steady)}</b><small>per paycheck once every recurring fund is caught up</small></div><div>Paydays in the next 12 months<b>${p.pd.length}</b></div></div>`;
+ for(const r of p.rows)if(r.late)h+=`<div class="warn">${r.name}: no payday left before ${ymd(r.due)}. The ${money(Math.max(0,r.cost-r.saved))} gap has to come from money on hand.</div>`;
+ for(const r of p.rows)if(r.saved>=r.cost)h+=`<div class="warn" style="background:#eef3f8;border-color:#23395b">${r.name}: already fully saved for ${ymd(r.due)}.</div>`;
+ h+=`<div class="scroll"><table class="res"><tr><th>Fund</th><th>Paydays left</th><th>Per paycheck now</th><th>Steady per paycheck</th></tr>`+p.rows.map(r=>`<tr><td>${r.name}<br><small>${money(r.cost)} due ${ymd(r.due)}</small></td><td>${r.n}</td><td>${money(r.catchup||0)}</td><td>${r.rep>0?money(r.steady??0):'<small>one time</small>'}</td></tr>`).join('')+`</table></div>`;
+ h+=`<h2>Next 12 months</h2><div class="scroll"><table class="res"><tr><th>Month</th><th>Paydays</th><th>Set aside</th></tr>`+Object.entries(months).map(([k,v])=>`<tr><td>${k}</td><td>${v.n}</td><td>${money(v.t)}</td></tr>`).join('')+`</table></div>`;
+ $('out').innerHTML=h}
+$('csv').onclick=()=>{if(!last)return;const q=s=>'"'+String(s).replace(/"/g,'""')+'"';const L=[['Payday',...last.rows.map(r=>q(r.name)),'Total'].join(',')];
+ for(const d of last.pd){const k=ymd(d);const v=last.rows.map(r=>r.per[k]||0);L.push([k,...v.map(x=>x.toFixed(2)),v.reduce((a,b)=>a+b,0).toFixed(2)].join(','))}
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([L.join('\r\n')],{type:'text/csv'}));a.download='sinking-funds-plan.csv';a.click()};
+sample.forEach(fund);$('add').onclick=()=>{fund(['',0,'',0,12]);};
+['freq','first'].forEach(i=>$(i).oninput=run);
+const t=new Date(),n=new Date(Date.UTC(t.getFullYear(),t.getMonth(),t.getDate()+((5-t.getDay()+7)%7||7)));$('first').value=ymd(n);
+run();
+</script>
+</body>
+</html>
